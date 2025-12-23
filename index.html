@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Điểm danh CLB Chạy Bộ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+      font-family: system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .card {
+      background: rgba(255,255,255,.12);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 28px;
+      width: 92%;
+      max-width: 420px;
+      box-shadow: 0 10px 36px rgba(0,0,0,.4);
+    }
+    h2 { text-align:center }
+    input, button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      font-size: 16px;
+    }
+    button {
+      background: #ff7043;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h2>🏃‍♂️ Điểm danh CLB</h2>
+
+    <input id="name" placeholder="Họ và tên" required>
+    <input id="studentId" placeholder="Mã SV / mã buổi" required>
+    <input type="file" id="file" required>
+
+    <button onclick="submitForm()">Xác nhận điểm danh</button>
+
+    <p id="msg"></p>
+  </div>
+
+<script>
+const SCHOOL_LAT = 20.989262873940614;
+const SCHOOL_LNG = 105.84781828343206;
+const MAX_DISTANCE = 100;
+
+// 🔴 URL WEB APP APPS SCRIPT (deploy xong thay vào)
+const API_URL = "https://script.google.com/macros/s/XXXXXXXX/exec";
+
+function toRad(x){ return x*Math.PI/180; }
+function distance(a,b,c,d){
+  const R=6371000;
+  const dLat=toRad(c-a), dLng=toRad(d-b);
+  return R*2*Math.atan2(
+    Math.sqrt(Math.sin(dLat/2)**2 +
+    Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLng/2)**2),
+    Math.sqrt(1-(
+      Math.sin(dLat/2)**2 +
+      Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLng/2)**2
+    ))
+  );
+}
+
+async function submitForm(){
+  const msg = document.getElementById("msg");
+  msg.innerText = "Đang xác định vị trí…";
+
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+
+    if (distance(lat,lng,SCHOOL_LAT,SCHOOL_LNG) > MAX_DISTANCE){
+      msg.innerText = "❌ Bạn không ở đúng địa điểm";
+      return;
+    }
+
+    const fileInput = document.getElementById("file");
+    const file = fileInput.files[0];
+    if (!file){
+      msg.innerText = "❌ Chưa chọn tệp";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(",")[1];
+
+      const payload = {
+        name: document.getElementById("name").value,
+        studentId: document.getElementById("studentId").value,
+        lat, lng,
+        fileName: file.name,
+        fileType: file.type,
+        fileData: base64
+      };
+
+      const res = await fetch(API_URL,{
+        method:"POST",
+        body: JSON.stringify(payload)
+      });
+
+      const text = await res.text();
+      msg.innerText = text;
+    };
+
+    reader.readAsDataURL(file);
+  },
+  ()=> msg.innerText="❌ Không lấy được GPS");
+}
+</script>
+</body>
+</html>
