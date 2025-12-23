@@ -4,125 +4,187 @@
   <meta charset="utf-8">
   <title>Điểm danh CLB Chạy Bộ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <style>
     body {
       margin: 0;
-      height: 100vh;
-      background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
-      font-family: system-ui, sans-serif;
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      font-family: "Segoe UI", Arial, sans-serif;
       color: #fff;
     }
+
     .card {
-      background: rgba(255,255,255,.12);
+      background: rgba(255,255,255,0.12);
       backdrop-filter: blur(12px);
       border-radius: 20px;
-      padding: 28px;
+      padding: 30px;
       width: 92%;
       max-width: 420px;
-      box-shadow: 0 10px 36px rgba(0,0,0,.4);
+      text-align: center;
+      box-shadow: 0 10px 36px rgba(0,0,0,0.4);
     }
-    h2 { text-align:center }
-    input, button {
+
+    h2 {
+      font-size: 30px;
+      margin-bottom: 12px;
+    }
+
+    p {
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+
+    input {
       width: 100%;
-      margin-top: 12px;
-      padding: 12px;
+      padding: 14px;
+      font-size: 18px;
+      margin-bottom: 14px;
       border-radius: 10px;
       border: none;
-      font-size: 16px;
     }
+
     button {
-      background: #ff7043;
+      width: 100%;
+      padding: 16px;
+      font-size: 20px;
+      font-weight: bold;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(90deg, #ff9800, #ff5722);
       color: #fff;
-      font-weight: 700;
       cursor: pointer;
     }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 14px;
+      font-size: 16px;
+    }
+
+    .ok { color: #b9ffb9; }
+    .err { color: #ffd6d6; }
   </style>
 </head>
 
 <body>
   <div class="card">
-    <h2>🏃‍♂️ Điểm danh CLB</h2>
+    <h2>🏃‍♂️ Điểm danh CLB Chạy Bộ</h2>
+    <p>Vui lòng đứng tại điểm tập trung</p>
 
-    <input id="name" placeholder="Họ và tên" required>
-    <input id="studentId" placeholder="Mã SV / mã buổi" required>
-    <input type="file" id="file" required>
+    <input id="name" placeholder="Họ và tên">
+    <input id="studentId" placeholder="MSSV">
+    <input id="photo" type="file" accept="image/*">
 
-    <button onclick="submitForm()">Xác nhận điểm danh</button>
+    <button id="submitBtn" disabled>📍 Đang xác định GPS...</button>
 
-    <p id="msg"></p>
+    <div class="status" id="status"></div>
   </div>
 
 <script>
-const SCHOOL_LAT = 20.989262873940614;
-const SCHOOL_LNG = 105.84781828343206;
-const MAX_DISTANCE = 100;
+  const API_URL = "https://script.google.com/macros/s/AKfycbwqsOYYSBFqM_nQcg7KHBsIkUH3VpsjJjrcZ0IEQi7dFu2AV5y_NMg9EquaG5_owvax/exec"; // 🔴 sửa
+  const SCHOOL_LAT = 20.989262873940614;
+  const SCHOOL_LNG = 105.84781828343206;
+  const MAX_DISTANCE = 100;
 
-// 🔴 URL WEB APP APPS SCRIPT (deploy xong thay vào)
-const API_URL = "https://script.google.com/macros/s/AKfycbwqsOYYSBFqM_nQcg7KHBsIkUH3VpsjJjrcZ0IEQi7dFu2AV5y_NMg9EquaG5_owvax/exec";
+  let currentLat = null;
+  let currentLng = null;
 
-function toRad(x){ return x*Math.PI/180; }
-function distance(a,b,c,d){
-  const R=6371000;
-  const dLat=toRad(c-a), dLng=toRad(d-b);
-  return R*2*Math.atan2(
-    Math.sqrt(Math.sin(dLat/2)**2 +
-    Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLng/2)**2),
-    Math.sqrt(1-(
+  function toRad(x) {
+    return x * Math.PI / 180;
+  }
+
+  function distance(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
       Math.sin(dLat/2)**2 +
-      Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLng/2)**2
-    ))
+      Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  // 🔹 Bắt buộc GPS
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      currentLat = pos.coords.latitude;
+      currentLng = pos.coords.longitude;
+
+      const d = distance(currentLat, currentLng, SCHOOL_LAT, SCHOOL_LNG);
+
+      if (d > MAX_DISTANCE) {
+        document.getElementById("status").innerHTML =
+          `<span class="err">❌ Bạn không ở đúng địa điểm (${Math.round(d)}m)</span>`;
+        return;
+      }
+
+      document.getElementById("submitBtn").disabled = false;
+      document.getElementById("submitBtn").innerText = "✅ Gửi điểm danh";
+      document.getElementById("status").innerHTML =
+        `<span class="ok">✔ GPS hợp lệ</span>`;
+    },
+    err => {
+      document.getElementById("status").innerHTML =
+        `<span class="err">❌ Chưa bật GPS hoặc không cấp quyền</span>`;
+    }
   );
-}
 
-async function submitForm(){
-  const msg = document.getElementById("msg");
-  msg.innerText = "Đang xác định vị trí…";
+  document.getElementById("submitBtn").onclick = async () => {
+    const name = document.getElementById("name").value.trim();
+    const studentId = document.getElementById("studentId").value.trim();
+    const fileInput = document.getElementById("photo");
 
-  navigator.geolocation.getCurrentPosition(async pos=>{
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-
-    if (distance(lat,lng,SCHOOL_LAT,SCHOOL_LNG) > MAX_DISTANCE){
-      msg.innerText = "❌ Bạn không ở đúng địa điểm";
+    if (!name || !studentId) {
+      alert("Vui lòng nhập đầy đủ thông tin");
       return;
     }
 
-    const fileInput = document.getElementById("file");
+    if (!fileInput.files.length) {
+      alert("Vui lòng chụp / chọn ảnh");
+      return;
+    }
+
     const file = fileInput.files[0];
-    if (!file){
-      msg.innerText = "❌ Chưa chọn tệp";
-      return;
-    }
-
     const reader = new FileReader();
+
     reader.onload = async () => {
       const base64 = reader.result.split(",")[1];
 
       const payload = {
-        name: document.getElementById("name").value,
-        studentId: document.getElementById("studentId").value,
-        lat, lng,
+        name,
+        studentId,
+        lat: currentLat,
+        lng: currentLng,
         fileName: file.name,
         fileType: file.type,
         fileData: base64
       };
 
-      const res = await fetch(API_URL,{
-        method:"POST",
+      document.getElementById("submitBtn").disabled = true;
+      document.getElementById("submitBtn").innerText = "⏳ Đang gửi...";
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
       const text = await res.text();
-      msg.innerText = text;
+      alert(text);
+      location.reload();
     };
 
     reader.readAsDataURL(file);
-  },
-  ()=> msg.innerText="❌ Không lấy được GPS");
-}
+  };
 </script>
 </body>
 </html>
